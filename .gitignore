@@ -1,0 +1,40 @@
+# DataFlip MX - Git Ignore
+
+# === PYTHON ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+
+# === JUPYTER ===
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# === DATOS Y LOGS ===
+data/raw/*
+data/processed/*
+data/analytics/*
+logs/*
+*.csv
+*.json
+*.xlsx
+
+# Excepciones (mantener estructura)
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/analytics/.gitkeep
+!logs/.gitkeep
+
+# === CREDENCIALES ===
+.env
+config/secrets.py
+*.key
+
+# === SISTEMA ===
+.DS_Store
+Thumbs.db
