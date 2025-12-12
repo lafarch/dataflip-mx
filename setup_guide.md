@@ -167,6 +167,31 @@ jupyter notebook
 
 Ejecuta los notebooks en este orden:
 
+#### **0. `00_descubrimiento_nichos.ipynb`** (20 min) ⭐ NUEVO
+
+**Qué hace:**
+- Explora TODO Mercado Libre automáticamente
+- Analiza 10+ categorías completas
+- Identifica productos con alta demanda y baja competencia
+- Genera lista de nichos prometedores SIN sesgo manual
+
+**Cómo ejecutar:**
+- Abre el notebook
+- Run All (no requiere configuración previa)
+
+**Output esperado:**
+- Mapa visual de oportunidades (demanda vs competencia)
+- Top 15-20 nichos descubiertos automáticamente
+- Score de ratio demanda/competencia
+
+**Archivos generados:**
+- `data/analytics/nichos_descubiertos_[timestamp].csv` ⭐
+- `data/raw/discovery_productos_[timestamp].csv`
+
+**💡 TIP:** Este notebook reemplaza la necesidad de "adivinar" nichos manualmente.
+
+---
+
 #### **1. `01_mercadolibre_api.ipynb`** (30 min)
 
 **Qué hace:**

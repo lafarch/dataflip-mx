@@ -30,16 +30,161 @@ SITE_ID = "MLM"  # MLM = México
 # Delay entre requests (buena práctica)
 REQUEST_DELAY = 1
 
-# Nichos a analizar
-NICHOS = [
-    "calculadora financiera HP 12C",
-    "camara digital vintage",
-    "teclado mecanico",
-    "game boy advance",
-    "ipod classic",
+# MODO DE ANÁLISIS
+ANALYSIS_MODE = "discovery"  # "discovery" o "targeted"
+
+# Si usas modo "targeted", define nichos específicos aquí:
+TARGETED_NICHOS = [
+    "calculadora financiera",
+    "camara vintage",
 ]
 
-print(f"🎯 Analizaremos {len(NICHOS)} nichos")
+print(f"🎯 Modo de análisis: {ANALYSIS_MODE.upper()}")
+
+# %%
+# === FUNCIONES PARA EXPLORACIÓN DE CATEGORÍAS ===
+
+def get_categories(site_id: str = SITE_ID) -> List[Dict]:
+    """
+    Obtiene todas las categorías de Mercado Libre
+    Esto nos permite explorar el catálogo completo
+    """
+    url = f"{BASE_URL}/sites/{site_id}/categories"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"❌ Error obteniendo categorías: {e}")
+        return []
+
+def get_category_details(category_id: str) -> Dict:
+    """
+    Obtiene detalles de una categoría específica incluyendo subcategorías
+    """
+    url = f"{BASE_URL}/categories/{category_id}"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"❌ Error en categoría {category_id}: {e}")
+        return {}
+
+def get_trending_products(category_id: str, limit: int = 50) -> Dict:
+    """
+    Obtiene productos más vendidos/relevantes de una categoría
+    """
+    url = f"{BASE_URL}/sites/{SITE_ID}/search"
+    params = {
+        'category': category_id,
+        'limit': limit,
+        'sort': 'sold_quantity_desc'  # Ordenar por más vendidos
+    }
+    
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"❌ Error: {e}")
+        return {}
+
+# %%
+# === DESCUBRIMIENTO AUTOMÁTICO DE NICHOS ===
+if ANALYSIS_MODE == "discovery":
+    print("\n" + "="*60)
+    print("🔍 MODO DESCUBRIMIENTO: Explorando Mercado Libre")
+    print("="*60 + "\n")
+    
+    # 1. Obtener todas las categorías principales
+    print("📂 Obteniendo categorías principales...")
+    categories = get_categories()
+    
+    if categories:
+        print(f"✅ {len(categories)} categorías encontradas\n")
+        
+        # Mostrar primeras 20 categorías
+        print("Categorías principales:")
+        for i, cat in enumerate(categories[:20], 1):
+            print(f"   {i}. {cat['name']} (ID: {cat['id']})")
+    
+    # 2. Seleccionar categorías relevantes para reventa
+    # Priorizamos categorías con alto potencial de reventa
+    RELEVANT_CATEGORIES = [
+        'MLM1000',  # Electrónica, Audio y Video
+        'MLM1051',  # Celulares y Teléfonos
+        'MLM1144',  # Consolas y Videojuegos
+        'MLM1168',  # Computación
+        'MLM1182',  # Cámaras y Accesorios
+        'MLM1039',  # Instrumentos Musicales
+        'MLM1276',  # Deportes y Fitness
+        'MLM1430',  # Ropa y Accesorios
+    ]
+    
+    print(f"\n🎯 Analizando {len(RELEVANT_CATEGORIES)} categorías prioritarias...")
+    
+    # 3. Explorar productos más vendidos por categoría
+    all_trending = []
+    
+    for cat_id in RELEVANT_CATEGORIES:
+        print(f"\n📊 Categoría: {cat_id}")
+        
+        trending = get_trending_products(cat_id, limit=50)
+        
+        if trending and 'results' in trending:
+            products = [parse_product_data(item) for item in trending['results']]
+            df_cat = pd.DataFrame(products)
+            df_cat['categoria_id'] = cat_id
+            
+            all_trending.append(df_cat)
+            print(f"   ✅ {len(df_cat)} productos encontrados")
+        
+        time.sleep(REQUEST_DELAY)
+    
+    if all_trending:
+        df_discovery = pd.concat(all_trending, ignore_index=True)
+        print(f"\n✅ Total productos descubiertos: {len(df_discovery)}")
+        
+        # Análisis rápido de oportunidades
+        print("\n💡 PRODUCTOS CON MEJOR RATIO VENTAS/COMPETENCIA:\n")
+        
+        # Agrupar por título similar (primeras 30 caracteres)
+        df_discovery['titulo_corto'] = df_discovery['titulo'].str[:30]
+        
+        oportunidades = df_discovery.groupby('titulo_corto').agg({
+            'vendidos': 'sum',
+            'precio': 'mean',
+            'id': 'count'
+        }).rename(columns={'id': 'num_listings'})
+        
+        # Calcular score de oportunidad
+        oportunidades['ratio_ventas_competencia'] = (
+            oportunidades['vendidos'] / oportunidades['num_listings']
+        )
+        
+        # Filtrar: alta demanda (>100 vendidos) y baja competencia (<20 listings)
+        oportunidades_filtradas = oportunidades[
+            (oportunidades['vendidos'] > 100) & 
+            (oportunidades['num_listings'] < 20)
+        ].sort_values('ratio_ventas_competencia', ascending=False)
+        
+        print(oportunidades_filtradas.head(15))
+        
+        # Usar estos productos como nichos a analizar
+        NICHOS = oportunidades_filtradas.index.tolist()[:10]
+        print(f"\n🎯 Nichos descubiertos automáticamente: {len(NICHOS)}")
+        
+    else:
+        print("\n⚠️  No se descubrieron productos. Usando nichos por defecto.")
+        NICHOS = ["iphone usado", "nintendo switch", "playstation"]
+
+else:
+    # Modo targeted: usar nichos predefinidos
+    NICHOS = TARGETED_NICHOS
+    print(f"🎯 Analizando {len(NICHOS)} nichos predefinidos")
 
 # %%
 # === FUNCIONES AUXILIARES ===
@@ -128,6 +273,41 @@ def analyze_niche(query: str, limit: int = 50) -> pd.DataFrame:
     time.sleep(REQUEST_DELAY)
     
     return df
+
+# %%
+# === CARGAR NICHOS DESCUBIERTOS (SI EXISTEN) ===
+import glob
+import os
+
+if ANALYSIS_MODE == "discovery":
+    # Buscar archivo de nichos descubiertos
+    discovery_files = glob.glob('data/analytics/nichos_descubiertos_*.csv')
+    
+    if discovery_files:
+        latest_discovery = max(discovery_files, key=os.path.getctime)
+        print(f"\n✅ Cargando nichos desde: {latest_discovery}")
+        
+        df_discovered = pd.read_csv(latest_discovery, encoding='utf-8-sig', index_col=0)
+        
+        # Usar top 10 nichos con mejor ratio
+        NICHOS = df_discovered.head(10).index.tolist()
+        
+        print(f"\n🎯 Analizaremos estos {len(NICHOS)} nichos descubiertos:\n")
+        for i, nicho in enumerate(NICHOS, 1):
+            print(f"   {i}. {nicho}")
+    else:
+        print("\n⚠️  No se encontró archivo de descubrimiento.")
+        print("   Ejecuta primero: 00_descubrimiento_nichos.ipynb")
+        print("   Usando nichos de ejemplo...\n")
+        
+        NICHOS = [
+            "calculadora financiera",
+            "game boy",
+            "teclado mecanico",
+        ]
+
+else:
+    NICHOS = TARGETED_NICHOS
 
 # %%
 # === ANÁLISIS DE TODOS LOS NICHOS ===
